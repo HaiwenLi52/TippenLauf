@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TippenLauf</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      padding: 40px;
+      background: #f5f5f5;
+    }
+    #sentence {
+      font-size: 24px;
+      line-height: 2;
+      max-width: 800px;
+      user-select: none;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .word {
+      display: inline;
+    }
+    .correct {
+      color: green;
+    }
+    .wrong {
+      color: red;
+    }
+    .caret {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: black;
+      animation: blink 1s step-start infinite;
+      vertical-align: bottom;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+    #stats, #options {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    #timerControls {
+      margin-top: 10px;
+    }
+    select, input {
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    #resultScreen {
+      display: none;
+      margin-top: 20px;
+      font-size: 20px;
+      background: #e0ffe0;
+      padding: 15px;
+      border: 2px solid #00aa00;
+    }
+  </style>
+</head>
+<body>
+<h1 id="title">TippenLauf</h1>
+<div id="options">
+  <span id="langLabel">Language:</span>
+  <select id="languageSelect">
+    <option value="en">English</option>
+    <option value="de">Deutsch</option>
+  </select>
+  <span id="timerLabel">Timer (sec):</span>
+  <input type="number" id="timerInput" value="60" min="10">
+  <button id="startButton" onclick="startGame()">Start</button>
+</div>
+<div id="sentence"></div>
+<div id="stats">
+  <span id="wpmLabel">Word per minute:</span> <span id="wpm">0</span><br>
+  <span id="mistakesLabel">Mistakes:</span> <span id="mistakes">0</span><br>
+  <span id="timeLabel">Time left:</span> <span id="timeLeft">0</span>
+</div>
+<div id="resultScreen"></div>
+<script>
+  const sentenceContainer = document.getElementById("sentence");
+  const wpmDisplay = document.getElementById("wpm");
+  const mistakesDisplay = document.getElementById("mistakes");
+  const timeLeftDisplay = document.getElementById("timeLeft");
+  const languageSelect = document.getElementById("languageSelect");
+  const timerInput = document.getElementById("timerInput");
+  const resultScreen = document.getElementById("resultScreen");
+
+  const langElements = {
+    en: {
+      langLabel: "Language:",
+      timerLabel: "Timer (sec):",
+      startButton: "Start",
+      wpmLabel: "Word per minute:",
+      mistakesLabel: "Mistakes:",
+      timeLabel: "Time left:",
+      resultTitle: "Time's up!",
+      tryAgain: "Try Again"
+    },
+    de: {
+      langLabel: "Sprache:",
+      timerLabel: "Timer (Sek.):",
+      startButton: "Starten",
+      wpmLabel: "Wörter pro Minute:",
+      mistakesLabel: "Fehler:",
+      timeLabel: "Verbleibende Zeit:",
+      resultTitle: "Zeit ist um!",
+      tryAgain: "Erneut versuchen"
+    }
+  };
+
+  const wordBank = {
+    en: ["hello", "world", "keyboard", "javascript", "code", "speed", "practice", "fun", "type", "game"],
+    de: [
+      "hallo", "welt", "tastatur", "programm", "code", "geschwindigkeit", "übung", "spaß", "tippen", "spiel", "überraschung",
+      "rückmeldung", "käse", "straße", "würde", "abenteuer", "bäckerei", "schüler", "abfahrt", "übernachten"
+    ]
+  };
+
+  let words = [];
+  let currentWordIndex = 0;
+  let typedWord = "";
+  let mistakes = 0;
+  let startTime = null;
+  let timer = null;
+  let timeLeft = 60;
+
+  function generateWords(lang = "en", count = 100) {
+    const bank = wordBank[lang];
+    return Array.from({length: count}, () => bank[Math.floor(Math.random() * bank.length)]);
+  }
+
+  function renderSentence() {
+    sentenceContainer.innerHTML = "";
+    words.forEach((word, index) => {
+      const span = document.createElement("span");
+      span.className = "word";
+      if (index === currentWordIndex) {
+        const correctPart = word.slice(0, typedWord.length);
+        const isWrong = typedWord !== correctPart;
+        span.innerHTML = `<span class="${isWrong ? 'wrong' : 'correct'}">${typedWord}</span><span class="caret"></span>${word.slice(typedWord.length)} `;
+      } else {
+        span.textContent = word + " ";
+      }
+      sentenceContainer.appendChild(span);
+    });
+  }
+
+  function updateStats() {
+    const now = new Date().getTime();
+    const minutes = (now - startTime) / 60000;
+    const wpm = Math.round(currentWordIndex / minutes);
+    wpmDisplay.textContent = isNaN(wpm) ? 0 : wpm;
+    mistakesDisplay.textContent = mistakes;
+  }
+
+  document.addEventListener("keydown", function(e) {
+    if (!startTime) return;
+    if (e.key === " ") {
+      e.preventDefault();
+      const current = words[currentWordIndex];
+      if (typedWord.trim() !== current) {
+        mistakes++;
+        typedWord = "";  // Reset typed word after a mistake
+      } else {
+        currentWordIndex++;  // Move to next word if correctly typed
+        typedWord = "";  // Reset typed word after completing a word
+      }
+      renderSentence();
+      updateStats();
+    } else if (e.key.length === 1) {
+      typedWord += e.key;
+      renderSentence();
+    } else if (e.key === "Backspace") {
+      typedWord = typedWord.slice(0, -1);
+      renderSentence();
+    }
+  });
+
+  function startGame() {
+    const lang = languageSelect.value;
+    updateLanguageUI(lang);
+    words = generateWords(lang, 200);
+    currentWordIndex = 0;
+    typedWord = "";
+    mistakes = 0;
+    startTime = new Date().getTime();
+    timeLeft = parseInt(timerInput.value);
+    resultScreen.style.display = "none";
+    renderSentence();
+    updateStats();
+    timeLeftDisplay.textContent = timeLeft;
+
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+      timeLeft--;
+      timeLeftDisplay.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        finishGame();
+      }
+    }, 1000);
+  }
+
+  function updateLanguageUI(lang) {
+    document.getElementById("langLabel").textContent = langElements[lang].langLabel;
+    document.getElementById("timerLabel").textContent = langElements[lang].timerLabel;
+    document.getElementById("startButton").textContent = langElements[lang].startButton;
+    document.getElementById("wpmLabel").textContent = langElements[lang].wpmLabel;
+    document.getElementById("mistakesLabel").textContent = langElements[lang].mistakesLabel;
+    document.getElementById("timeLabel").textContent = langElements[lang].timeLabel;
+  }
+
+  function finishGame() {
+    const lang = languageSelect.value;
+    sentenceContainer.innerHTML = "";
+    resultScreen.innerHTML = `
+      <strong>${langElements[lang].resultTitle}</strong><br>
+      ${langElements[lang].wpmLabel} ${wpmDisplay.textContent}<br>
+      ${langElements[lang].mistakesLabel} ${mistakes}<br>
+      <button onclick="startGame()">${langElements[lang].tryAgain}</button>
+    `;
+    resultScreen.style.display = "block";
+    startTime = null;
+  }
+
+  languageSelect.addEventListener("change", () => {
+    updateLanguageUI(languageSelect.value);
+  });
+</script>
+</body>
+</html>
